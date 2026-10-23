@@ -1,0 +1,45 @@
+﻿services:
+  stock-postgres:
+    image: postgres:16-alpine
+    container_name: stock-copilot-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: stock_copilot
+      POSTGRES_USER: stock_user
+      POSTGRES_PASSWORD: stock_password_2026
+    ports:
+      - "5434:5432"
+    volumes:
+      - stock_copilot_pgdata:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stock_user -d stock_copilot"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  stock-copilot-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: stock-copilot-app
+    restart: unless-stopped
+    depends_on:
+      stock-postgres:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      DB_HOST: stock-postgres
+      DB_PORT: 5432
+      DB_NAME: stock_copilot
+      DB_USER: stock_user
+      DB_PASSWORD: stock_password_2026
+      TELEGRAM_BOT_TOKEN: "8862702138:AAHEUnRXYNdmeSqe7kUQ9n6VMXiI9B_H828"
+      TELEGRAM_CHAT_ID: "6428436481"
+      AI_BRIDGE_URL: "http://host.docker.internal:9998"
+      SCANNER_INTERVAL: 60
+
+volumes:
+  stock_copilot_pgdata:
+    name: stock_copilot_pgdata
