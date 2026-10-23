@@ -9,8 +9,14 @@ from market_data import get_intraday_data, get_live_price
 
 logger = logging.getLogger("Scanner")
 
+# Múi giờ Việt Nam (UTC+7)
+VN_TZ = datetime.timezone(datetime.timedelta(hours=7))
+
 alerted_today = {}
 last_report_date = ""
+
+def get_vietnam_now():
+    return datetime.datetime.now(VN_TZ)
 
 def send_telegram(text: str):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
@@ -81,15 +87,17 @@ def detect_candle_pattern(day_open, day_high, day_low, day_close, prev_open, pre
 
     return None
 
-def send_daily_close_report():
+def send_daily_close_report(force=False):
     global last_report_date
-    today_str = datetime.date.today().strftime("%Y-%m-%d")
-    if last_report_date == today_str:
+    vn_now = get_vietnam_now()
+    today_str = vn_now.strftime("%Y-%m-%d")
+    if not force and last_report_date == today_str:
         return
     last_report_date = today_str
 
     holdings = get_portfolio_holdings()
     if not holdings:
+        logger.info("Danh mục rỗng, bỏ qua báo cáo chốt phiên.")
         return
 
     fund_map = {}
@@ -150,22 +158,24 @@ def send_daily_close_report():
         f"💵 <b>Tổng vốn đầu tư:</b> {grand_cost:,.0f} VND\n"
         f"📈 <b>Tổng Lời / Lỗ:</b> {g_icon}{grand_pnl:,.0f} VND (<b>{grand_pct}%</b>)\n\n"
         f"{body}"
-        f"💡 <i>Báo cáo định kỳ lúc 15:00 sau giờ chốt phiên sàn HOSE!</i>"
+        f"💡 <i>Báo cáo tự động sau giờ chốt phiên sàn HOSE (15:00)!</i>"
     )
     send_telegram(report_msg)
+    logger.info(f"Đã phát Báo cáo tổng kết chốt phiên ngày {today_str} thành công!")
 
 def run_scanner_loop():
     logger.info("Khởi chạy vòng lặp Scanner thị trường...")
     while True:
         try:
-            now = datetime.datetime.now()
-            today_str = now.strftime("%Y-%m-%d")
+            vn_now = get_vietnam_now()
+            today_str = vn_now.strftime("%Y-%m-%d")
 
-            # Check 15:00 close report (chỉ chạy từ 15:00 đến 15:05 vào ngày trong tuần)
-            if now.weekday() < 5 and now.hour == 15 and now.minute <= 5:
+            # 1. Tự động gửi Báo cáo chốt phiên (từ 15:00 trở đi vào ngày trong tuần T2-T6)
+            if vn_now.weekday() < 5 and vn_now.hour >= 15 and last_report_date != today_str:
+                logger.info(f"Đến giờ chốt phiên ({vn_now.strftime('%H:%M:%S')}) - Kích hoạt gửi báo cáo ngày {today_str}...")
                 send_daily_close_report()
 
-            # Quét danh sách 24 mã
+            # 2. Quét danh sách 24 mã
             watchlists = get_watchlists(active_only=True)
             for item in watchlists:
                 tk = item['ticker']

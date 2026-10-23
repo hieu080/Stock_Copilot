@@ -7,6 +7,7 @@
       POSTGRES_DB: stock_copilot
       POSTGRES_USER: stock_user
       POSTGRES_PASSWORD: stock_password_2026
+      TZ: Asia/Ho_Chi_Minh
     ports:
       - "5434:5432"
     volumes:
@@ -39,6 +40,7 @@
       TELEGRAM_CHAT_ID: "6428436481"
       AI_BRIDGE_URL: "http://host.docker.internal:9998"
       SCANNER_INTERVAL: 60
+      TZ: Asia/Ho_Chi_Minh
 
 volumes:
   stock_copilot_pgdata:

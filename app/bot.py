@@ -13,6 +13,7 @@ from db import (
 )
 from market_data import get_live_price
 from ai_client import call_conversational_ai
+from scanner import send_daily_close_report
 
 logger = logging.getLogger("TelegramBot")
 
@@ -412,6 +413,12 @@ def run_bot_loop():
                     handle_portfolio_report(chat_id, "")
                     continue
 
+                # 7.5. Báo cáo chốt phiên theo yêu cầu
+                if re.search(r"\b(chốt phiên|báo cáo chốt phiên|tổng kết phiên|/close|/chotphien)\b", text, re.IGNORECASE):
+                    send_reply(chat_id, "⏳ <i>Đang tổng hợp số liệu chốt phiên hôm nay...</i>")
+                    send_daily_close_report(force=True)
+                    continue
+
                 # 8. Bản phân tích chuyên sâu tĩnh (CHỈ khi gõ đúng lệnh tắt /deep hoặc 'phân tích chuyên sâu Mã')
                 is_explicit_deep = (re.search(r"^/(deep|phantich|ptcs)\b", text, re.IGNORECASE) or re.search(r"^(phân tích chuyên sâu|luận điểm đầu tư|báo cáo)\s+[A-Za-z]{3}$", text, re.IGNORECASE)) and found_ticker
                 if is_explicit_deep:
@@ -447,5 +454,10 @@ def run_bot_loop():
                 ))
 
         except Exception as e:
-            logger.error(f"Lỗi trong vòng lặp bot: {e}")
-            time.sleep(2)
+            err_str = str(e).lower()
+            if "timed out" in err_str:
+                # Long polling timeout bình thường khi không có tin nhắn mới
+                pass
+            else:
+                logger.warning(f"Lỗi kết nối Telegram: {e}")
+                time.sleep(2)
